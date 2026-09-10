@@ -1,0 +1,211 @@
+.lc-clean-types{gap:6px}
+.lc-clean-types button{height:34px;padding:0 10px;font-size:12.5px;font-weight:600}
+.lc-clean-coverage{font-size:12.5px;line-height:1.5}
+.lc-clean-results{margin:0 24px 22px;border-radius:10px}
+.lc-clean-table-head,.lc-clean-row{grid-template-columns:38px minmax(280px,1fr) 100px 132px 92px;column-gap:12px}
+.lc-clean-table-head{height:42px;padding:0 14px;font-size:12px;font-weight:700;letter-spacing:.01em}
+.lc-clean-list{max-height:470px}
+.lc-clean-row{min-height:66px;padding:0 14px}
+.lc-clean-row>input{align-self:center;justify-self:center;margin:0;width:15px;height:15px;accent-color:var(--accent)}
+.lc-clean-file{display:grid!important;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:11px;min-width:0}
+.lc-clean-thumb,.lc-clean-row .lc-file-glyph{width:40px!important;height:40px!important;flex:0 0 40px!important;border-radius:8px}
+.lc-clean-copy{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px}
+.lc-clean-copy strong{font-size:14px;line-height:1.25;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-clean-copy small{font-size:11.5px;line-height:1.25}
+.lc-clean-row>span:not(.lc-clean-file){font-size:12.5px;line-height:1.35}
+.lc-clean-row .lc-kind{font-size:11.5px}
+.lc-clean-empty{font-size:13px}
+
+.lc-backup-summary .lc-button-accent{min-width:122px;color:#fff!important}
+
+@media(max-width:900px){
+  .lc-brand{height:82px;padding:14px 10px;justify-content:center;align-items:center}
+  .lc-brand-copy{display:none!important}
+  .lc-clean-toolbar{grid-template-columns:1fr auto;padding:16px 18px 14px}
+  .lc-clean-results{margin:0 18px 20px}
+  .lc-clean-table-head,.lc-clean-row{grid-template-columns:34px minmax(190px,1fr) 92px 112px}
+  .lc-clean-table-head span:last-child,.lc-clean-row>span:last-child{display:none}
+}
+@media(max-width:590px){
+  .lc-clean-toolbar{grid-template-columns:1fr;padding:14px 12px}
+  .lc-clean-results{margin:0 12px 16px}
+  .lc-clean-table-head,.lc-clean-row{grid-template-columns:30px minmax(0,1fr) 96px}
+  .lc-clean-table-head span:nth-child(3),.lc-clean-row>span:nth-child(3){display:none}
+  .lc-clean-file{grid-template-columns:36px minmax(0,1fr);gap:8px}
+  .lc-clean-thumb,.lc-clean-row .lc-file-glyph{width:36px!important;height:36px!important;flex-basis:36px!important}
+  .lc-clean-copy strong{font-size:13px}
+}
+
+/* Release polish: brand metadata, native-control alignment, and consistent scroll surfaces. */
+.lc-root{
+  --scrollbar-track:color-mix(in srgb,var(--panel-2) 88%,var(--border));
+  --scrollbar-thumb:color-mix(in srgb,var(--muted) 58%,var(--panel));
+  --scrollbar-thumb-hover:color-mix(in srgb,var(--muted) 78%,var(--panel));
+}
+.lc-root[data-theme="dark"]{
+  --scrollbar-track:#242629;
+  --scrollbar-thumb:#555a62;
+  --scrollbar-thumb-hover:#6a7079;
+}
+
+/* Brand: keep the version inside the identity block without competing with the product name. */
+.lc-brand{
+  position:relative;
+  height:106px;
+  padding:20px 18px 18px;
+  align-items:flex-start;
+}
+.lc-brand-copy{
+  gap:6px;
+  padding-right:0;
+}
+.lc-brand-title{
+  display:block;
+  min-width:0;
+}
+.lc-brand-title strong{
+  display:block;
+  font-size:18px;
+  line-height:1.15;
+}
+.lc-brand-slogan{
+  max-width:138px!important;
+  font-size:11.5px!important;
+  line-height:1.42!important;
+}
+.lc-version-badge{
+  position:absolute;
+  right:14px;
+  bottom:12px;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:var(--muted)!important;
+  font-size:10.5px!important;
+  line-height:1!important;
+  font-weight:650!important;
+  letter-spacing:.01em;
+  opacity:.9;
+}
+
+/* Scroll areas: never expose the browser's bright native track in dark mode. */
+.lc-viewport,
+.lc-clean-list{
+  scrollbar-width:thin;
+  scrollbar-color:var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-gutter:stable;
+  overscroll-behavior:contain;
+}
+.lc-viewport::-webkit-scrollbar,
+.lc-clean-list::-webkit-scrollbar{
+  width:10px;
+  height:10px;
+}
+.lc-viewport::-webkit-scrollbar-track,
+.lc-clean-list::-webkit-scrollbar-track{
+  background:var(--scrollbar-track);
+}
+.lc-viewport::-webkit-scrollbar-thumb,
+.lc-clean-list::-webkit-scrollbar-thumb{
+  background:var(--scrollbar-thumb);
+  border:2px solid var(--scrollbar-track);
+  border-radius:999px;
+  min-height:42px;
+}
+.lc-viewport::-webkit-scrollbar-thumb:hover,
+.lc-clean-list::-webkit-scrollbar-thumb:hover{
+  background:var(--scrollbar-thumb-hover);
+}
+.lc-viewport::-webkit-scrollbar-corner,
+.lc-clean-list::-webkit-scrollbar-corner{
+  background:var(--scrollbar-track);
+}
+
+/* Settings controls: all right-side controls share the same visual centerline. */
+.lc-setting-row > :last-child{
+  margin-left:auto;
+  align-self:center;
+  flex:0 0 auto;
+}
+.lc-setting-row > div{
+  min-width:0;
+}
+.lc-switch{
+  position:relative;
+  width:42px;
+  height:24px;
+  min-width:42px;
+  min-height:24px;
+  padding:0;
+  margin-top:0;
+  align-self:center!important;
+  vertical-align:middle;
+}
+.lc-switch-track{
+  position:relative;
+  width:42px;
+  height:24px;
+  padding:0;
+  display:block;
+}
+.lc-switch-thumb{
+  position:absolute;
+  top:2px;
+  left:2px;
+  width:20px;
+  height:20px;
+  margin:0;
+}
+.lc-switch input:checked + .lc-switch-track .lc-switch-thumb{
+  transform:translateX(18px);
+}
+
+@media(max-width:900px){
+  .lc-version-badge{display:none}
+}
+@media(max-width:590px){
+  .lc-setting-row > :last-child{margin-left:0;align-self:flex-start}
+  .lc-switch{align-self:flex-start!important}
+}
+
+
+/* v2.6 release UI refinements */
+/* Keep the primary sync action visually primary while a sync is running. */
+#lc-sync.is-stop,
+#lc-sync.is-stop:hover {
+  background:linear-gradient(180deg,var(--accent-2),var(--accent));
+  border-color:var(--accent);
+  color:#fff;
+  box-shadow:0 5px 14px color-mix(in srgb,var(--accent) 22%,transparent);
+  filter:none;
+}
+#lc-sync.is-stop span,
+#lc-sync.is-stop svg { color:#fff!important; }
+#lc-sync.is-stop:disabled { opacity:.72; }
+
+/* Smart Clean uses the same table-header selection pattern as File Manager. */
+.lc-clean-toolbar {
+  grid-template-columns:minmax(250px,390px) minmax(160px,190px);
+  justify-content:start;
+}
+.lc-clean-table-head .lc-clean-head-check {
+  display:grid;
+  place-items:center;
+  align-self:stretch;
+}
+#lc-clean-master-check {
+  width:15px;
+  height:15px;
+  margin:0;
+  accent-color:var(--accent);
+  cursor:pointer;
+}
+#lc-clean-master-check:disabled { cursor:not-allowed; opacity:.45; }
+@media(max-width:900px){
+  .lc-clean-toolbar{grid-template-columns:1fr auto;}
+}
+@media(max-width:590px){
+  .lc-clean-toolbar{grid-template-columns:1fr;}
+}
