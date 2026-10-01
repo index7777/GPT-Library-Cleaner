@@ -91,35 +91,52 @@
 }
 
 /* Scroll areas: never expose the browser's bright native track in dark mode. */
+.lc-view[data-view="settings"]{
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.lc-settings-list{
+  flex:0 0 auto;
+}
+
 .lc-viewport,
-.lc-clean-list{
+.lc-clean-list,
+.lc-view[data-view="settings"]{
   scrollbar-width:thin;
   scrollbar-color:var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-gutter:stable;
   overscroll-behavior:contain;
 }
 .lc-viewport::-webkit-scrollbar,
-.lc-clean-list::-webkit-scrollbar{
+.lc-clean-list::-webkit-scrollbar,
+.lc-view[data-view="settings"]::-webkit-scrollbar{
   width:10px;
   height:10px;
 }
 .lc-viewport::-webkit-scrollbar-track,
-.lc-clean-list::-webkit-scrollbar-track{
+.lc-clean-list::-webkit-scrollbar-track,
+.lc-view[data-view="settings"]::-webkit-scrollbar-track{
   background:var(--scrollbar-track);
 }
 .lc-viewport::-webkit-scrollbar-thumb,
-.lc-clean-list::-webkit-scrollbar-thumb{
+.lc-clean-list::-webkit-scrollbar-thumb,
+.lc-view[data-view="settings"]::-webkit-scrollbar-thumb{
   background:var(--scrollbar-thumb);
   border:2px solid var(--scrollbar-track);
   border-radius:999px;
   min-height:42px;
 }
 .lc-viewport::-webkit-scrollbar-thumb:hover,
-.lc-clean-list::-webkit-scrollbar-thumb:hover{
+.lc-clean-list::-webkit-scrollbar-thumb:hover,
+.lc-view[data-view="settings"]::-webkit-scrollbar-thumb:hover{
   background:var(--scrollbar-thumb-hover);
 }
 .lc-viewport::-webkit-scrollbar-corner,
-.lc-clean-list::-webkit-scrollbar-corner{
+.lc-clean-list::-webkit-scrollbar-corner,
+.lc-view[data-view="settings"]::-webkit-scrollbar-corner{
   background:var(--scrollbar-track);
 }
 
