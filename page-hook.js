@@ -426,7 +426,7 @@
       post('LIBRARY_SOURCE_READY', { method: best.source.method, url: best.source.url, count: best.candidates.length });
       return { ...best.source, json: best.json, candidates: best.candidates };
     }
-    throw new Error('尚未取得可分頁的檔案庫資料來源，請重新整理檔案庫後再同步');
+    throw new Error('LCERR_LIBRARY_SOURCE');
   };
 
   const runFullSync = async payload => {
@@ -481,9 +481,9 @@
           if (method === 'POST' && !Object.keys(options.headers).some(k => k.toLowerCase() === 'content-type')) options.headers['content-type'] = 'application/json';
           if (method === 'POST' && body != null) options.body = body;
           const response = await originalFetch(url, options);
-          if (!response.ok) throw new Error(`同步失敗：HTTP ${response.status}`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           json = safeJson(await response.text());
-          if (!json) throw new Error('同步回應不是 JSON');
+          if (!json) throw new Error('LCERR_SYNC_JSON');
           candidates = uniqueCandidates(extractCandidates(json));
         }
 
@@ -721,7 +721,7 @@
     let last = '';
     const authHeaders = await currentAuthHeaders('application/json,*/*');
     for (const url of endpoints) {
-      if (signal?.aborted) throw new Error('已取消');
+      if (signal?.aborted) throw new Error('LCERR_CANCELLED');
       try {
         const response = await fetchWithTimeout(url, { credentials:'include', headers:authHeaders }, 12000, signal);
         if (!response.ok) { last = `HTTP ${response.status}`; continue; }
@@ -734,11 +734,11 @@
         if (!download.ok) { last = `download HTTP ${download.status}`; continue; }
         return await download.blob();
       } catch (error) {
-        if (signal?.aborted) throw new Error('已取消');
+        if (signal?.aborted) throw new Error('LCERR_CANCELLED');
         last = error?.name === 'AbortError' ? 'timeout' : String(error);
       }
     }
-    throw new Error(last || '無法取得下載內容');
+    throw new Error(last || 'LCERR_DOWNLOAD_UNAVAILABLE');
   };
 
   const buildStoredZip = async entries => {
@@ -773,7 +773,7 @@
     let cursor = 0, completed = 0, failed = 0, bytesDone = 0;
     const concurrency = Math.max(1, Math.min(4, Number(payload?.concurrency) || 3));
     const report = extra => post('BACKUP_PROGRESS', { requestId, total, doneCount:completed, failed, bytesDone, ...extra });
-    report({ phase:'download', current:'準備下載…' });
+    report({ phase:'download' });
     const worker = async () => {
       while (!controller.signal.aborted) {
         const i = cursor++;
@@ -788,7 +788,7 @@
         } catch (error) {
           if (controller.signal.aborted) return;
           failed++;
-          const code = String(error?.message || error || '未知錯誤').slice(0,80);
+          const code = String(error?.message || error || 'LCERR_UNKNOWN').slice(0,80);
           errorCounts.set(code, (errorCounts.get(code)||0)+1);
         }
         completed++;
@@ -798,12 +798,12 @@
     };
     try {
       await Promise.all(Array.from({ length:Math.min(concurrency,total) }, worker));
-      if (controller.signal.aborted) { report({ done:true, cancelled:true, phase:'cancelled', current:'備份已停止', errors:[...errorCounts.entries()] }); return; }
+      if (controller.signal.aborted) { report({ done:true, cancelled:true, phase:'cancelled', errors:[...errorCounts.entries()] }); return; }
       const good = entries.filter(Boolean);
-      if (!good.length) { report({ done:true, phase:'error', error:'沒有任何檔案下載成功', errors:[...errorCounts.entries()] }); return; }
-      report({ phase:'packing', current:`正在建立 ZIP · ${good.length} 個檔案` });
+      if (!good.length) { report({ done:true, phase:'error', error:'LCERR_NO_DOWNLOADS', errors:[...errorCounts.entries()] }); return; }
+      report({ phase:'packing', packedCount:good.length });
       const zip = await buildStoredZip(good);
-      report({ phase:'saving', current:`正在準備下載 · ${fmtZipBytes(zip.size)}` });
+      report({ phase:'saving', zipBytes:zip.size });
       const href = URL.createObjectURL(zip);
       const anchor = document.createElement('a');
       anchor.href = href;
@@ -813,15 +813,10 @@
       anchor.click();
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(href), 60000);
-      report({ done:true, phase:'done', current:`${good.length} 個檔案已打包`, errors:[...errorCounts.entries()] });
+      report({ done:true, phase:'done', packedCount:good.length, errors:[...errorCounts.entries()] });
     } catch (error) {
       report({ done:true, phase:'error', error:String(error?.message || error), errors:[...errorCounts.entries()] });
     } finally { backupControllers.delete(requestId); }
-  };
-  const fmtZipBytes = n => {
-    const units=['B','KB','MB','GB']; let v=Number(n)||0,i=0;
-    while(v>=1024&&i<units.length-1){v/=1024;i++;}
-    return `${v>=10||i===0?v.toFixed(0):v.toFixed(1)} ${units[i]}`;
   };
 
   window.fetch = async function(input, init = {}) {

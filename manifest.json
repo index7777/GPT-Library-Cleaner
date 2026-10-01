@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Library Cleaner",
+  "name": "__MSG_extensionName__",
   "version": "2.7.0",
-  "description": "Manage, filter, back up and clean up your ChatGPT Library.",
+  "description": "__MSG_extensionDescription__",
   "permissions": [
     "storage"
   ],
@@ -16,7 +16,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Library Cleaner",
+    "default_title": "__MSG_extensionName__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -33,6 +33,7 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "locales.js",
         "content.js",
         "toolbar-bridge.js"
       ],
@@ -54,5 +55,6 @@
         "https://chatgpt.com/*"
       ]
     }
-  ]
+  ],
+  "default_locale": "en"
 }

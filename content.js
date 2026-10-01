@@ -1,6 +1,6 @@
 (() => {
   const CHANNEL = 'LC_BRIDGE_V240';
-  const VERSION = '2.6';
+  const VERSION = '2.7.0';
   const STORAGE_UI = 'lc_ui_v190';
   const ROW_HEIGHT = 58;
   const OVERSCAN = 8;
@@ -8,6 +8,7 @@
 
   const state = {
     accountReady: false,
+    language: 'auto',
     bridgeReady: false,
     librarySource: null,
     accountKey: '',
@@ -54,6 +55,23 @@
   };
 
   const ui = {};
+  const I18N = globalThis.LibraryCleanerI18n;
+  const currentLocale = () => I18N.resolveLocale(state.language);
+  const t = (key, vars = {}) => I18N.t(currentLocale(), key, vars);
+  const n = value => Number(value || 0).toLocaleString(currentLocale());
+  const bridgeText = value => {
+    const key = {
+      LCERR_LIBRARY_SOURCE: 'errorLibrarySource',
+      LCERR_SYNC_JSON: 'errorSyncJson',
+      LCERR_CANCELLED: 'errorCancelled',
+      LCERR_DOWNLOAD_UNAVAILABLE: 'errorDownloadUnavailable',
+      LCERR_NO_DOWNLOADS: 'errorNoDownloads',
+      LCERR_UNKNOWN: 'unknownError',
+      LCERR_NO_ACCOUNT: 'noAccount',
+      LCERR_NO_BRIDGE: 'noBridge'
+    }[String(value || '')];
+    return key ? t(key) : String(value || t('unknownError'));
+  };
 
   const injectBridge = () => {
     const script = document.createElement('script');
@@ -90,13 +108,13 @@
     if (/^(audio|video)\//.test(mime)) return 'media';
     return 'other';
   };
-  const typeLabel = type => ({ all:'全部', image:'圖片', pdf:'PDF', document:'文件', spreadsheet:'試算表', presentation:'簡報', archive:'壓縮檔', media:'影音', other:'其他' }[type] || '其他');
+  const typeLabel = type => t(`type${String(type || 'other').charAt(0).toUpperCase()}${String(type || 'other').slice(1)}`);
   const hasDeletePair = file => /^libfile[_-]/i.test(String(file?.libraryFileId || '')) && /^file[_-]/i.test(String(file?.fileId || ''));
   const isValidFile = file => !!file && !!file.id && !!file.name && (/^(libfile[_-]|file[_-])/i.test(String(file.id)) || hasDeletePair(file));
   const normalizeFile = raw => {
     const file = { ...raw };
     file.id = String(file.libraryFileId || file.id || file.fileId || '');
-    file.name = String(file.name || '未命名檔案');
+    file.name = String(file.name || t('unnamedFile'));
     file.ext = fileExt(file.name);
     file.type = classifyFile(file);
     file.size = Number(file.size) || 0;
@@ -112,14 +130,14 @@
   };
   const fmtDate = value => {
     const ts = timestamp(value);
-    if (!ts) return '日期不明';
+    if (!ts) return t('dateUnknown');
     const d = new Date(ts);
-    return new Intl.DateTimeFormat('zh-TW', { year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
+    return new Intl.DateTimeFormat(currentLocale(), { year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
   };
   const fmtDateTime = value => {
     const ts = timestamp(value);
-    if (!ts) return '尚未同步';
-    return new Intl.DateTimeFormat('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).format(new Date(ts));
+    if (!ts) return t('neverSynced');
+    return new Intl.DateTimeFormat(currentLocale(), { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).format(new Date(ts));
   };
   const fmtBytes = bytes => {
     const n = Number(bytes) || 0;
@@ -144,6 +162,7 @@
   const saveUi = () => chrome.storage.local.set({
     [STORAGE_UI]: {
       theme: state.theme,
+      language: state.language,
       typeFilter: state.typeFilter,
       cleanTypeFilter: state.cleanTypeFilter,
       sort: state.sort,
@@ -176,6 +195,7 @@
     const data = await chrome.storage.local.get([STORAGE_UI, 'lc_ui_v160', 'lc_ui_v120', 'cglc_ui_v120']);
     const settings = data[STORAGE_UI] || data.lc_ui_v160 || data.lc_ui_v120 || data.cglc_ui_v120 || {};
     if (['light','dark'].includes(settings.theme)) state.theme = settings.theme;
+    if (I18N.supported.includes(settings.language)) state.language = settings.language;
     if (Object.keys(typeSets).concat('all','other').includes(settings.typeFilter)) state.typeFilter = settings.typeFilter;
     if (Object.keys(typeSets).concat('all','other').includes(settings.cleanTypeFilter)) state.cleanTypeFilter = settings.cleanTypeFilter;
     if (['newest','oldest','name','size'].includes(settings.sort)) state.sort = settings.sort;
@@ -251,7 +271,7 @@
   const filteredFiles = () => {
     const key = [state.filesVersion, state.filterVersion, state.query, state.typeFilter, state.sort, state.deletableOnly, state.dateOnly, state.cutoffDate].join('|');
     if (state.filteredCache.key === key) return state.filteredCache.rows;
-    const query = state.query.trim().toLocaleLowerCase('zh-TW');
+    const query = state.query.trim().toLocaleLowerCase(currentLocale());
     let rows = [...state.files.values()].filter(file => {
       if (state.deletableOnly && !hasDeletePair(file)) return false;
       if (state.dateOnly && state.cutoffDate) {
@@ -261,13 +281,13 @@
       }
       if (state.typeFilter !== 'all' && file.type !== state.typeFilter) return false;
       if (query) {
-        const haystack = `${file.name} ${file.ext} ${file.mime || ''} ${typeLabel(file.type)} ${file.id}`.toLocaleLowerCase('zh-TW');
+        const haystack = `${file.name} ${file.ext} ${file.mime || ''} ${typeLabel(file.type)} ${file.id}`.toLocaleLowerCase(currentLocale());
         const tokens = query.replace(/\*/g, ' ').split(/\s+/).filter(Boolean);
         if (tokens.length && !tokens.every(token => haystack.includes(token))) return false;
       }
       return true;
     });
-    if (state.sort === 'name') rows.sort((a,b) => a.name.localeCompare(b.name, 'zh-TW', { numeric:true, sensitivity:'base' }));
+    if (state.sort === 'name') rows.sort((a,b) => a.name.localeCompare(b.name, currentLocale(), { numeric:true, sensitivity:'base' }));
     else if (state.sort === 'size') rows.sort((a,b) => (b.size || 0) - (a.size || 0));
     else if (state.sort === 'oldest') rows.sort((a,b) => (timestamp(a.created) || Infinity) - (timestamp(b.created) || Infinity));
     else rows.sort((a,b) => (timestamp(b.created) || 0) - (timestamp(a.created) || 0));
@@ -348,7 +368,7 @@
     const root = document.createElement('div');
     root.className = 'lc-root';
     root.innerHTML = `
-      <button class="lc-launcher" id="lc-launcher" aria-label="開啟 Library Cleaner">
+      <button class="lc-launcher" id="lc-launcher" data-i18n-aria="openCleaner">
         <img src="${chrome.runtime.getURL('icons/icon48.png')}" alt="" />
       </button>
       <section class="lc-panel" id="lc-panel" aria-label="Library Cleaner">
@@ -357,31 +377,31 @@
             <img src="${chrome.runtime.getURL('icons/icon48.png')}" class="lc-brand-icon" alt="" />
             <div class="lc-brand-copy">
               <div class="lc-brand-title"><strong>Library Cleaner</strong></div>
-              <span class="lc-brand-slogan">整理、備份與清理 ChatGPT 檔案</span>
+              <span class="lc-brand-slogan" data-i18n="brandSlogan"></span>
             </div>
             <span class="lc-version-badge">v${VERSION}</span>
           </div>
-          <nav class="lc-tabs" aria-label="主要功能">
-            <button data-tab="files">${iconSvg('folder',18)}<span>檔案管理</span></button>
-            <button data-tab="clean">${iconSvg('magic',18)}<span>智慧清理</span></button>
-            <button data-tab="backup">${iconSvg('download',18)}<span>備份匯出</span></button>
-            <button data-tab="settings">${iconSvg('settings',18)}<span>設定</span></button>
+          <nav class="lc-tabs" data-i18n-aria="mainFeatures">
+            <button data-tab="files">${iconSvg('folder',18)}<span data-i18n="tabFiles"></span></button>
+            <button data-tab="clean">${iconSvg('magic',18)}<span data-i18n="tabClean"></span></button>
+            <button data-tab="backup">${iconSvg('download',18)}<span data-i18n="tabBackup"></span></button>
+            <button data-tab="settings">${iconSvg('settings',18)}<span data-i18n="tabSettings"></span></button>
           </nav>
         </aside>
 
         <div class="lc-workspace">
           <header class="lc-topbar">
             <div class="lc-metrics">
-              <div><strong id="lc-total">0</strong><span>檔案總數</span></div>
-              <div><strong id="lc-selected">0</strong><span>已選取</span></div>
-              <div><strong id="lc-known-size">—</strong><span>總容量</span></div>
+              <div><strong id="lc-total">0</strong><span data-i18n="totalFiles"></span></div>
+              <div><strong id="lc-selected">0</strong><span data-i18n="selected"></span></div>
+              <div><strong id="lc-known-size">—</strong><span data-i18n="totalSize"></span></div>
             </div>
             <div class="lc-top-actions">
-              <div class="lc-sync-copy"><strong id="lc-sync-title">準備檔案庫</strong><span id="lc-sync-subtitle">正在建立安全連線</span></div>
-              <span class="lc-status" id="lc-status"><i></i><span>連線中</span></span>
-              <button class="lc-button lc-button-accent" id="lc-sync">${iconSvg('sync',16)}<span>同步</span></button>
-              <button class="lc-icon-button lc-theme" id="lc-theme" title="切換日夜模式"></button>
-              <button class="lc-icon-button" id="lc-close" title="關閉">${iconSvg('close')}</button>
+              <div class="lc-sync-copy"><strong id="lc-sync-title"></strong><span id="lc-sync-subtitle"></span></div>
+              <span class="lc-status" id="lc-status"><i></i><span></span></span>
+              <button class="lc-button lc-button-accent" id="lc-sync">${iconSvg('sync',16)}<span data-i18n="sync"></span></button>
+              <button class="lc-icon-button lc-theme" id="lc-theme" data-i18n-title="toggleTheme"></button>
+              <button class="lc-icon-button" id="lc-close" data-i18n-title="close">${iconSvg('close')}</button>
             </div>
           </header>
           <div class="lc-sync-progress"><span id="lc-sync-bar"></span></div>
@@ -389,78 +409,79 @@
           <main class="lc-content">
             <section class="lc-view lc-files-view" data-view="files">
               <div class="lc-file-toolbar">
-                <div class="lc-search-wrap">${iconSvg('search',19)}<input id="lc-search" type="search" autocomplete="off" placeholder="搜尋檔名、類型、ID 或內容…"><button id="lc-search-clear" class="lc-search-clear" aria-label="清除搜尋">×</button></div>
-                <select id="lc-sort" class="lc-select" aria-label="排序">
-                  <option value="newest">建立日期（新 → 舊）</option>
-                  <option value="oldest">建立日期（舊 → 新）</option>
-                  <option value="name">名稱 A → Z</option>
-                  <option value="size">容量大 → 小</option>
+                <div class="lc-search-wrap">${iconSvg('search',19)}<input id="lc-search" type="search" autocomplete="off" data-i18n-placeholder="searchPlaceholder"><button id="lc-search-clear" class="lc-search-clear" data-i18n-aria="clearSearch">×</button></div>
+                <select id="lc-sort" class="lc-select" data-i18n-aria="sort">
+                  <option value="newest" data-i18n="sortNewest"></option>
+                  <option value="oldest" data-i18n="sortOldest"></option>
+                  <option value="name" data-i18n="sortName"></option>
+                  <option value="size" data-i18n="sortSize"></option>
                 </select>
               </div>
               <div class="lc-filterbar">
                 <div class="lc-types" id="lc-types"></div>
                 <div class="lc-bulk-tools">
-                  <button class="lc-text-button" id="lc-select-all">全選結果</button>
-                  <button class="lc-text-button" id="lc-select-100">前 100</button>
-                  <button class="lc-text-button" id="lc-clear-selection">清除</button>
+                  <button class="lc-text-button" id="lc-select-all" data-i18n="selectAllResults"></button>
+                  <button class="lc-text-button" id="lc-select-100" data-i18n="first100"></button>
+                  <button class="lc-text-button" id="lc-clear-selection" data-i18n="clear"></button>
                 </div>
               </div>
               <div class="lc-table-shell">
                 <div class="lc-table-head">
-                  <div><input type="checkbox" id="lc-master-check" aria-label="選取目前結果"></div>
-                  <div>名稱</div><div>類型</div><div>副檔名</div><div>建立日期</div><div>大小</div>
+                  <div><input type="checkbox" id="lc-master-check" data-i18n-aria="selectCurrentResults"></div>
+                  <div data-i18n="name"></div><div data-i18n="type"></div><div data-i18n="extension"></div><div data-i18n="created"></div><div data-i18n="size"></div>
                 </div>
                 <div class="lc-viewport" id="lc-viewport">
                   <div class="lc-spacer" id="lc-spacer"><div class="lc-row-layer" id="lc-row-layer"></div></div>
-                  <div class="lc-empty" id="lc-empty"><strong>沒有符合條件的檔案</strong><span>調整搜尋或篩選條件後再試。</span></div>
+                  <div class="lc-empty" id="lc-empty"><strong data-i18n="noMatchingFiles"></strong><span data-i18n="adjustSearchFilters"></span></div>
                 </div>
               </div>
             </section>
 
             <section class="lc-view" data-view="clean">
-              <div class="lc-page-heading"><div><h2>智慧清理</h2><p>找出指定日期以前建立的檔案，預覽後再選取。</p></div></div>
+              <div class="lc-page-heading"><div><h2 data-i18n="smartClean"></h2><p data-i18n="smartCleanDescription"></p></div></div>
               <div class="lc-clean-toolbar">
-                <label class="lc-clean-date">指定日期<input id="lc-cutoff" type="date" class="lc-input"></label>
-                <div class="lc-clean-metrics"><span>可清理檔案</span><strong id="lc-old-count">0 個</strong><small id="lc-old-size">—</small></div>
+                <label class="lc-clean-date"><span data-i18n="cutoffDate"></span><input id="lc-cutoff" type="date" class="lc-input"></label>
+                <div class="lc-clean-metrics"><span data-i18n="cleanableFiles"></span><strong id="lc-old-count">0</strong><small id="lc-old-size">—</small></div>
               </div>
               <div class="lc-clean-context">
                 <div class="lc-clean-types" id="lc-clean-types"></div>
                 <div class="lc-clean-coverage" id="lc-clean-coverage"></div>
               </div>
               <div class="lc-clean-results">
-                <div class="lc-clean-table-head"><span class="lc-clean-head-check"><input type="checkbox" id="lc-clean-master-check" aria-label="選取目前清理結果"></span><span>名稱</span><span>類型</span><span>建立日期</span><span>大小</span></div>
+                <div class="lc-clean-table-head"><span class="lc-clean-head-check"><input type="checkbox" id="lc-clean-master-check" data-i18n-aria="selectCleanResults"></span><span data-i18n="name"></span><span data-i18n="type"></span><span data-i18n="created"></span><span data-i18n="size"></span></div>
                 <div id="lc-clean-list" class="lc-clean-list"></div>
-                <div id="lc-clean-empty" class="lc-clean-empty">選擇指定日期後，較早建立的檔案會顯示在這裡。</div>
+                <div id="lc-clean-empty" class="lc-clean-empty"></div>
               </div>
             </section>
 
             <section class="lc-view" data-view="backup">
-              <div class="lc-page-heading"><div><h2>備份匯出</h2><p>將選取檔案打包成 ZIP，備份完成後再決定是否清理。</p></div></div>
+              <div class="lc-page-heading"><div><h2 data-i18n="backupExport"></h2><p data-i18n="backupDescription"></p></div></div>
               <div class="lc-form-grid lc-backup-name-grid">
-                <label>ZIP 名稱<input id="lc-archive-name" class="lc-input" placeholder="chatgpt-library-2026-09"></label>
+                <label><span data-i18n="zipName"></span><input id="lc-archive-name" class="lc-input" placeholder="chatgpt-library-2026-09"></label>
               </div>
-              <div class="lc-backup-summary"><div><span>目前選取</span><strong id="lc-backup-count">0 個檔案</strong><small id="lc-backup-size">—</small></div><button class="lc-button lc-button-accent" id="lc-backup-now">${iconSvg('download',16)}<span>備份所選</span></button></div>
+              <div class="lc-backup-summary"><div><span data-i18n="currentSelection"></span><strong id="lc-backup-count">0</strong><small id="lc-backup-size">—</small></div><button class="lc-button lc-button-accent" id="lc-backup-now">${iconSvg('download',16)}<span data-i18n="backupSelected"></span></button></div>
               <div class="lc-operation-progress" id="lc-backup-progress"><span></span></div>
-              <div class="lc-backup-status" id="lc-backup-status">選取檔案後可開始備份。</div>
+              <div class="lc-backup-status" id="lc-backup-status"></div>
             </section>
 
             <section class="lc-view" data-view="settings">
-              <div class="lc-page-heading"><div><h2>設定</h2><p>管理外觀、同步與目前帳號的本機索引。</p></div></div>
+              <div class="lc-page-heading"><div><h2 data-i18n="settings"></h2><p data-i18n="settingsDescription"></p></div></div>
               <div class="lc-settings-list">
-                <div class="lc-setting-row"><div><strong>外觀</strong><span>日間與夜間模式</span></div><button class="lc-button lc-button-secondary" id="lc-theme-settings">切換主題</button></div>
-                <div class="lc-setting-row"><div><strong>刪除處理速度</strong><span>建議使用標準，兼顧速度與穩定性。</span></div><select id="lc-concurrency" class="lc-select"><option value="1">穩定</option><option value="2">標準</option><option value="3">快速</option></select></div>
-                <div class="lc-setting-row"><div><strong>目前帳號索引</strong><span id="lc-index-info">尚未建立</span></div><button class="lc-button lc-button-secondary" id="lc-clear-index">清除本機索引</button></div>
-                <div class="lc-setting-row"><div><strong>自動同步</strong><span>開啟檔案庫時，自動檢查新增與變更的檔案。</span></div><label class="lc-switch"><input type="checkbox" id="lc-auto-sync"><span class="lc-switch-track"><span class="lc-switch-thumb"></span></span></label></div>
-                <div class="lc-setting-row"><div><strong>同步</strong><span id="lc-settings-sync-state">尚未同步</span></div><button class="lc-button lc-button-secondary" id="lc-settings-sync">立即同步</button></div>
+                <div class="lc-setting-row"><div><strong data-i18n="language"></strong><span data-i18n="languageDescription"></span></div><select id="lc-language" class="lc-select"><option value="auto" data-i18n="languageAuto"></option><option value="en" data-i18n="languageEnglish"></option><option value="zh-TW" data-i18n="languageTraditionalChinese"></option></select></div>
+                <div class="lc-setting-row"><div><strong data-i18n="appearance"></strong><span data-i18n="appearanceDescription"></span></div><button class="lc-button lc-button-secondary" id="lc-theme-settings" data-i18n="toggleThemeButton"></button></div>
+                <div class="lc-setting-row"><div><strong data-i18n="deleteSpeed"></strong><span data-i18n="deleteSpeedDescription"></span></div><select id="lc-concurrency" class="lc-select"><option value="1" data-i18n="speedStable"></option><option value="2" data-i18n="speedStandard"></option><option value="3" data-i18n="speedFast"></option></select></div>
+                <div class="lc-setting-row"><div><strong data-i18n="currentAccountIndex"></strong><span id="lc-index-info"></span></div><button class="lc-button lc-button-secondary" id="lc-clear-index" data-i18n="clearLocalIndex"></button></div>
+                <div class="lc-setting-row"><div><strong data-i18n="autoSync"></strong><span data-i18n="autoSyncDescription"></span></div><label class="lc-switch"><input type="checkbox" id="lc-auto-sync"><span class="lc-switch-track"><span class="lc-switch-thumb"></span></span></label></div>
+                <div class="lc-setting-row"><div><strong data-i18n="syncSetting"></strong><span id="lc-settings-sync-state"></span></div><button class="lc-button lc-button-secondary" id="lc-settings-sync" data-i18n="syncNow"></button></div>
               </div>
             </section>
           </main>
 
           <footer class="lc-actionbar">
-            <div class="lc-selection-summary"><strong id="lc-footer-selected">已選取 0 個檔案</strong><span id="lc-footer-sub">0 B</span></div>
+            <div class="lc-selection-summary"><strong id="lc-footer-selected"></strong><span id="lc-footer-sub">0 B</span></div>
             <div class="lc-action-buttons">
-              <button class="lc-button lc-button-secondary" id="lc-footer-backup">${iconSvg('download',16)}備份選取</button>
-              <button class="lc-button lc-button-danger" id="lc-delete">${iconSvg('trash',16)}刪除選取</button>
+              <button class="lc-button lc-button-secondary" id="lc-footer-backup">${iconSvg('download',16)}<span data-i18n="backupSelection"></span></button>
+              <button class="lc-button lc-button-danger" id="lc-delete">${iconSvg('trash',16)}<span data-i18n="deleteSelection"></span></button>
             </div>
           </footer>
         </div>
@@ -481,14 +502,25 @@
       cutoff: shadow.getElementById('lc-cutoff'), oldCount: shadow.getElementById('lc-old-count'), oldSize: shadow.getElementById('lc-old-size'), cleanMasterCheck: shadow.getElementById('lc-clean-master-check'), cleanList: shadow.getElementById('lc-clean-list'), cleanEmpty: shadow.getElementById('lc-clean-empty'), cleanCoverage: shadow.getElementById('lc-clean-coverage'), cleanTypes: shadow.getElementById('lc-clean-types'),
       archiveName: shadow.getElementById('lc-archive-name'),
       backupCount: shadow.getElementById('lc-backup-count'), backupSize: shadow.getElementById('lc-backup-size'), backupNow: shadow.getElementById('lc-backup-now'), backupProgress: shadow.getElementById('lc-backup-progress'), backupStatus: shadow.getElementById('lc-backup-status'),
-      themeSettings: shadow.getElementById('lc-theme-settings'), concurrency: shadow.getElementById('lc-concurrency'), autoSync: shadow.getElementById('lc-auto-sync'), indexInfo: shadow.getElementById('lc-index-info'), settingsSyncState: shadow.getElementById('lc-settings-sync-state'), clearIndex: shadow.getElementById('lc-clear-index'), settingsSync: shadow.getElementById('lc-settings-sync'),
+      language: shadow.getElementById('lc-language'), themeSettings: shadow.getElementById('lc-theme-settings'), concurrency: shadow.getElementById('lc-concurrency'), autoSync: shadow.getElementById('lc-auto-sync'), indexInfo: shadow.getElementById('lc-index-info'), settingsSyncState: shadow.getElementById('lc-settings-sync-state'), clearIndex: shadow.getElementById('lc-clear-index'), settingsSync: shadow.getElementById('lc-settings-sync'),
       footerSelected: shadow.getElementById('lc-footer-selected'), footerSub: shadow.getElementById('lc-footer-sub'), footerBackup: shadow.getElementById('lc-footer-backup'), deleteButton: shadow.getElementById('lc-delete')
     });
 
+    applyStaticTranslations();
     bindEvents();
     applyTheme();
     updateAll();
     applyRouteVisibility();
+  };
+
+  const applyStaticTranslations = () => {
+    if (!ui.shadow || !ui.root) return;
+    ui.root.setAttribute('lang', currentLocale());
+    for (const el of ui.shadow.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of ui.shadow.querySelectorAll('[data-i18n-placeholder]')) el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+    for (const el of ui.shadow.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    for (const el of ui.shadow.querySelectorAll('[data-i18n-title]')) el.setAttribute('title', t(el.dataset.i18nTitle));
+    if (ui.language) ui.language.value = state.language;
   };
 
   const bindEvents = () => {
@@ -623,6 +655,15 @@
     ui.backupNow.addEventListener('click', startBackup);
     ui.footerBackup.addEventListener('click', startBackup);
     ui.deleteButton.addEventListener('click', bulkDelete);
+    ui.language.addEventListener('change', event => {
+      state.language = I18N.supported.includes(event.target.value) ? event.target.value : 'auto';
+      state.filterVersion++;
+      state.filteredCache.key = '';
+      applyStaticTranslations();
+      applyTheme();
+      saveUi();
+      updateAll();
+    });
     ui.concurrency.addEventListener('change', event => { state.concurrency = Math.max(1, Math.min(3, Number(event.target.value) || 2)); saveUi(); });
     ui.autoSync.addEventListener('change', event => { state.autoSync = !!event.target.checked; saveUi(); if (state.autoSync && isLibraryRoute() && state.accountReady && !state.syncing) startSync(true); });
     ui.clearIndex.addEventListener('click', clearCurrentIndex);
@@ -642,7 +683,7 @@
 
   const applyTheme = () => {
     ui.root.dataset.theme = state.theme;
-    ui.theme.innerHTML = state.theme === 'dark' ? `${iconSvg('sun',15)}<span>Light</span>` : `${iconSvg('moon',15)}<span>Dark</span>`;
+    ui.theme.innerHTML = state.theme === 'dark' ? `${iconSvg('sun',15)}<span>${t('light')}</span>` : `${iconSvg('moon',15)}<span>${t('dark')}</span>`;
   };
   const toggleTheme = () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
@@ -658,28 +699,30 @@
   const updateHeader = () => {
     const total = state.files.size;
     const knownBytes = [...state.files.values()].reduce((sum, file) => sum + (Number(file.size) || 0), 0);
-    ui.total.textContent = total.toLocaleString('zh-TW');
+    ui.total.textContent = n(total);
     ui.knownSize.textContent = knownBytes ? fmtBytes(knownBytes) : '—';
-    ui.selected.textContent = state.selected.size.toLocaleString('zh-TW');
+    ui.selected.textContent = n(state.selected.size);
     if (ui.selectedSize) ui.selectedSize.textContent = state.selected.size ? fmtBytes(selectedBytes()) : '—';
 
     const statusText = ui.status.querySelector('span');
     if (!state.bridgeReady) {
       ui.status.dataset.state = 'pending';
-      statusText.textContent = '連線中';
+      statusText.textContent = t('connecting');
     } else if (!state.accountReady) {
       ui.status.dataset.state = 'pending';
-      statusText.textContent = '帳號識別中';
+      statusText.textContent = t('identifyingAccount');
     } else {
       ui.status.dataset.state = 'ready';
-      statusText.textContent = '已連線';
+      statusText.textContent = t('connected');
     }
 
     if (state.syncing) {
       const p = state.syncProgress || {};
-      ui.syncTitle.textContent = '正在同步';
-      ui.syncSubtitle.textContent = `${(p.found || total).toLocaleString('zh-TW')} 個檔案${p.pages ? ` · 第 ${p.pages} 頁` : ''}`;
-      ui.sync.innerHTML = `<span class="lc-sync-icon lc-spin">${iconSvg('sync',16)}</span><span>同步中</span>`;
+      ui.syncTitle.textContent = t('syncing');
+      const parts = [t('filesFound', { count:n(p.found || total) })];
+      if (p.pages) parts.push(t('page', { page:n(p.pages) }));
+      ui.syncSubtitle.textContent = parts.join(' · ');
+      ui.sync.innerHTML = `<span class="lc-sync-icon lc-spin">${iconSvg('sync',16)}</span><span>${t('syncing')}</span>`;
       ui.sync.classList.add('is-stop');
       const percent = p.total ? Math.min(100, ((p.found || 0) / p.total) * 100) : 0;
       ui.syncBar.style.width = `${percent}%`;
@@ -687,9 +730,9 @@
       ui.syncBar.parentElement.classList.toggle('is-indeterminate', !p.total);
     } else if (state.enriching) {
       const p = state.enrichProgress || {};
-      ui.syncTitle.textContent = '補全檔案資訊';
-      ui.syncSubtitle.textContent = `${(p.done || 0).toLocaleString('zh-TW')} / ${(p.total || 0).toLocaleString('zh-TW')} · 正在取得日期與容量`;
-      ui.sync.innerHTML = `<span class="lc-sync-icon lc-spin">${iconSvg('sync',16)}</span><span>停止</span>`;
+      ui.syncTitle.textContent = t('enriching');
+      ui.syncSubtitle.textContent = `${n(p.done || 0)} / ${n(p.total || 0)} · ${t('fetchingDateSize')}`;
+      ui.sync.innerHTML = `<span class="lc-sync-icon lc-spin">${iconSvg('sync',16)}</span><span>${t('stop')}</span>`;
       ui.sync.classList.add('is-stop');
       const percent = p.total ? Math.min(100, ((p.done || 0) / p.total) * 100) : 0;
       ui.syncBar.style.width = `${percent}%`;
@@ -698,13 +741,13 @@
     } else {
       const error = state.syncProgress?.error;
       if (error) {
-        ui.syncTitle.textContent = '同步失敗';
-        ui.syncSubtitle.textContent = String(error).replace(/^同步失敗：?/, '').slice(0, 80);
+        ui.syncTitle.textContent = t('syncFailed');
+        ui.syncSubtitle.textContent = bridgeText(error).slice(0, 120);
       } else {
-        ui.syncTitle.textContent = state.lastSyncAt ? '同步完成' : '尚未同步';
-        ui.syncSubtitle.textContent = state.lastSyncAt ? `${fmtDateTime(state.lastSyncAt)} · ${total.toLocaleString('zh-TW')} 個檔案` : '取得完整檔案清單';
+        ui.syncTitle.textContent = state.lastSyncAt ? t('syncComplete') : t('notSynced');
+        ui.syncSubtitle.textContent = state.lastSyncAt ? `${fmtDateTime(state.lastSyncAt)} · ${t('filesFound', { count:n(total) })}` : t('getFullFileList');
       }
-      ui.sync.innerHTML = `${iconSvg('sync',16)}<span>同步</span>`;
+      ui.sync.innerHTML = `${iconSvg('sync',16)}<span>${t('sync')}</span>`;
       ui.sync.classList.remove('is-stop');
       ui.syncBar.style.width = '0%';
       ui.syncBar.parentElement.classList.remove('is-active', 'is-indeterminate');
@@ -728,8 +771,8 @@
     const manageableRows = rows.filter(hasDeletePair);
     ui.masterCheck.checked = !!manageableRows.length && manageableRows.every(file => state.selected.has(file.id));
     ui.masterCheck.indeterminate = manageableRows.some(file => state.selected.has(file.id)) && !ui.masterCheck.checked;
-    ui.selectAll.textContent = ui.masterCheck.checked ? '取消全選' : '全選結果';
-    ui.masterCheck.setAttribute('aria-label', ui.masterCheck.checked ? '取消選取目前結果' : '選取目前結果');
+    ui.selectAll.textContent = ui.masterCheck.checked ? t('deselectAll') : t('selectAllResults');
+    ui.masterCheck.setAttribute('aria-label', ui.masterCheck.checked ? t('deselectCurrentResults') : t('selectCurrentResults'));
     renderVirtualRows();
   };
 
@@ -754,7 +797,7 @@
         : fileGlyph(file);
       html.push(`
         <div class="lc-row ${selected ? 'is-selected' : ''}" data-row-id="${escapeHtml(file.id)}" style="transform:translateY(${i * ROW_HEIGHT}px)">
-          <div class="lc-cell lc-cell-check"><input type="checkbox" data-file-id="${escapeHtml(file.id)}" ${selected ? 'checked' : ''} ${hasDeletePair(file) ? '' : 'disabled title="缺少刪除所需識別資訊"'}></div>
+          <div class="lc-cell lc-cell-check"><input type="checkbox" data-file-id="${escapeHtml(file.id)}" ${selected ? 'checked' : ''} ${hasDeletePair(file) ? '' : `disabled title="${escapeHtml(t('missingDeleteInfo'))}"`}></div>
           <div class="lc-cell lc-name-cell">${visual}<div class="lc-file-copy"><strong title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</strong><span>${escapeHtml(file.mime || typeLabel(file.type))}</span></div></div>
           <div class="lc-cell"><span class="lc-kind">${typeLabel(file.type)}</span></div>
           <div class="lc-cell lc-muted">${file.ext ? `.${escapeHtml(file.ext)}` : '—'}</div>
@@ -802,21 +845,21 @@
   const updateSelectionUi = () => {
     const count = state.selected.size;
     const bytes = selectedBytes();
-    ui.selected.textContent = count.toLocaleString('zh-TW');
+    ui.selected.textContent = n(count);
     if (ui.selectedSize) ui.selectedSize.textContent = count ? fmtBytes(bytes) : '—';
-    ui.footerSelected.textContent = count ? `已選取 ${count.toLocaleString('zh-TW')} 個檔案` : '尚未選取檔案';
-    ui.footerSub.textContent = count ? (bytes ? fmtBytes(bytes) : '容量未提供') : '選取後可備份或刪除';
+    ui.footerSelected.textContent = count ? t('filesSelected', { count:n(count) }) : t('noFilesSelected');
+    ui.footerSub.textContent = count ? (bytes ? fmtBytes(bytes) : t('sizeUnavailable')) : t('selectionHint');
     ui.footerBackup.disabled = !count || state.downloading;
     ui.deleteButton.disabled = !count || state.deleting;
     ui.backupNow.disabled = !count && !state.downloading;
-    ui.backupCount.textContent = `${count.toLocaleString('zh-TW')} 個檔案`;
+    ui.backupCount.textContent = t('filesCount', { count:n(count) });
     ui.backupSize.textContent = count ? fmtBytes(bytes) : '—';
     const rows = filteredFiles();
     const manageableRows = rows.filter(hasDeletePair);
     ui.masterCheck.checked = !!manageableRows.length && manageableRows.every(file => state.selected.has(file.id));
     ui.masterCheck.indeterminate = manageableRows.some(file => state.selected.has(file.id)) && !ui.masterCheck.checked;
-    ui.selectAll.textContent = ui.masterCheck.checked ? '取消全選' : '全選結果';
-    ui.masterCheck.setAttribute('aria-label', ui.masterCheck.checked ? '取消選取目前結果' : '選取目前結果');
+    ui.selectAll.textContent = ui.masterCheck.checked ? t('deselectAll') : t('selectAllResults');
+    ui.masterCheck.setAttribute('aria-label', ui.masterCheck.checked ? t('deselectCurrentResults') : t('selectCurrentResults'));
   };
 
   const updateCleanView = () => {
@@ -827,29 +870,29 @@
     const bytes = rows.reduce((sum, file) => sum + (file.size || 0), 0);
     const coverage = dateCoverage();
 
-    ui.oldCount.textContent = `${rows.length.toLocaleString('zh-TW')} 個`;
+    ui.oldCount.textContent = t('filesCount', { count:n(rows.length) });
     ui.oldSize.textContent = fmtBytes(bytes);
     const selectedCleanCount = selectableRows.filter(file => state.selected.has(file.id)).length;
     const allSelected = !!selectableRows.length && selectedCleanCount === selectableRows.length;
     ui.cleanMasterCheck.disabled = !selectableRows.length;
     ui.cleanMasterCheck.checked = allSelected;
     ui.cleanMasterCheck.indeterminate = selectedCleanCount > 0 && !allSelected;
-    ui.cleanMasterCheck.setAttribute('aria-label', allSelected ? '取消選取目前清理結果' : '選取目前清理結果');
+    ui.cleanMasterCheck.setAttribute('aria-label', allSelected ? t('deselectCleanResults') : t('selectCleanResults'));
 
     const cleanCounts = { all: allDateRows.length, image:0, pdf:0, document:0, spreadsheet:0, presentation:0, archive:0, media:0, other:0 };
     for (const file of allDateRows) cleanCounts[file.type] = (cleanCounts[file.type] || 0) + 1;
     ui.cleanTypes.innerHTML = ['all','image','pdf','document','spreadsheet','presentation','archive','media','other'].map(type =>
-      `<button class="${state.cleanTypeFilter===type?'is-active':''}" data-clean-type="${type}">${typeLabel(type)} <span>${(cleanCounts[type]||0).toLocaleString('zh-TW')}</span></button>`
+      `<button class="${state.cleanTypeFilter===type?'is-active':''}" data-clean-type="${type}">${typeLabel(type)} <span>${n(cleanCounts[type]||0)}</span></button>`
     ).join('');
 
     if (ui.cleanCoverage) {
       if (!state.cutoffDate) {
-        ui.cleanCoverage.textContent = '選擇一個日期，會列出該日期之前建立的檔案；指定日期當天不會包含在內。';
+        ui.cleanCoverage.textContent = t('cleanCoveragePrompt');
       } else if (!coverage.count) {
-        ui.cleanCoverage.textContent = '目前檔案庫尚未取得可用的建立日期。';
+        ui.cleanCoverage.textContent = t('noCreationDates');
       } else {
-        const d = new Intl.DateTimeFormat('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(specifiedDateStartTimestamp()));
-        ui.cleanCoverage.textContent = `顯示 ${d} 之前建立的檔案，不包含 ${d} 當天。`;
+        const d = new Intl.DateTimeFormat(currentLocale(),{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(specifiedDateStartTimestamp()));
+        ui.cleanCoverage.textContent = t('cleanCoverageRange', { date:d });
       }
     }
 
@@ -874,17 +917,17 @@
     ui.cleanEmpty.style.display = rows.length ? 'none' : 'flex';
     if (rows.length > visible.length) {
       ui.cleanEmpty.style.display = 'flex';
-      ui.cleanEmpty.textContent = `另有 ${(rows.length-visible.length).toLocaleString('zh-TW')} 個檔案；選取全部時會一併選取。`;
+      ui.cleanEmpty.textContent = t('moreFiles', { count:n(rows.length-visible.length) });
     } else if (!rows.length) {
       if (!state.cutoffDate) {
-        ui.cleanEmpty.textContent = '選擇指定日期後，較早建立的檔案會顯示在這裡。';
+        ui.cleanEmpty.textContent = t('cleanPrompt');
       } else if (!coverage.count) {
-        ui.cleanEmpty.textContent = '目前檔案庫尚未取得可用的建立日期。';
+        ui.cleanEmpty.textContent = t('noCreationDates');
       } else if (state.cleanTypeFilter !== 'all' && allDateRows.length) {
-        ui.cleanEmpty.textContent = `指定日期之前沒有「${typeLabel(state.cleanTypeFilter)}」檔案。`;
+        ui.cleanEmpty.textContent = t('cleanNoType', { type:typeLabel(state.cleanTypeFilter) });
       } else {
-        const d = new Intl.DateTimeFormat('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(specifiedDateStartTimestamp()));
-        ui.cleanEmpty.textContent = `${d} 之前沒有可清理的檔案。`;
+        const d = new Intl.DateTimeFormat(currentLocale(),{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(specifiedDateStartTimestamp()));
+        ui.cleanEmpty.textContent = t('cleanNoFilesBefore', { date:d });
       }
     }
   };
@@ -896,34 +939,44 @@
     if (!progress || !progress.total) {
       ui.backupProgress.classList.remove('is-active');
       ui.backupProgress.querySelector('span').style.width = '0%';
-      if (ui.backupStatus) ui.backupStatus.textContent = '選取檔案後可開始備份。';
+      if (ui.backupStatus) ui.backupStatus.textContent = t('backupReady');
     } else {
       ui.backupProgress.classList.add('is-active');
       ui.backupProgress.querySelector('span').style.width = `${Math.min(100, (progress.doneCount / progress.total) * 100)}%`;
       if (ui.backupStatus) {
-        const phase = progress.phase === 'packing' ? '正在建立 ZIP' : progress.phase === 'saving' ? '正在準備下載' : progress.phase === 'done' ? '備份完成' : progress.phase === 'error' ? '備份失敗' : progress.phase === 'cancelled' ? '備份已停止' : '正在下載';
-        const err = progress.failed ? ` · 失敗 ${progress.failed}` : '';
-        const cur = progress.current ? ` · ${progress.current}` : '';
-        const codes = Array.isArray(progress.errors) && progress.errors.length ? ` · ${progress.errors.slice(0,3).map(([code,count]) => `${code} × ${count}`).join('、')}` : '';
-        ui.backupStatus.textContent = `${phase} · ${progress.doneCount || 0}/${progress.total}${err}${cur}${codes}`;
+        const phaseKey = progress.phase === 'packing' ? 'backupPacking' : progress.phase === 'saving' ? 'backupSaving' : progress.phase === 'done' ? 'backupDone' : progress.phase === 'error' ? 'backupFailed' : progress.phase === 'cancelled' ? 'backupStopped' : 'backupDownloading';
+        const parts = [t(phaseKey), `${n(progress.doneCount || 0)}/${n(progress.total)}`];
+        if (progress.failed) parts.push(t('failed', { count:n(progress.failed) }));
+        if (progress.error) parts.push(bridgeText(progress.error));
+        else if (progress.phase === 'saving' && progress.zipBytes) parts.push(fmtBytes(progress.zipBytes));
+        else if ((progress.phase === 'packing' || progress.phase === 'done') && progress.packedCount) parts.push(t('backupPacked', { count:n(progress.packedCount) }));
+        else if (progress.current) parts.push(progress.current);
+        if (Array.isArray(progress.errors) && progress.errors.length) {
+          parts.push(progress.errors.slice(0,3).map(([code,count]) => `${bridgeText(code)} × ${n(count)}`).join(' · '));
+        }
+        ui.backupStatus.textContent = parts.join(' · ');
       }
     }
     if (state.downloading) {
       ui.backupNow.classList.add('is-stop');
-      ui.backupNow.innerHTML = `${iconSvg('close',16)}<span>停止備份</span>`;
+      ui.backupNow.innerHTML = `${iconSvg('close',16)}<span>${t('stopBackup')}</span>`;
     } else {
       ui.backupNow.classList.remove('is-stop');
-      ui.backupNow.innerHTML = `${iconSvg('download',16)}<span>備份所選</span>`;
+      ui.backupNow.innerHTML = `${iconSvg('download',16)}<span>${t('backupSelected')}</span>`;
     }
   };
 
   const updateSettings = () => {
+    ui.language.value = state.language;
     ui.concurrency.value = String(state.concurrency);
     ui.autoSync.checked = !!state.autoSync;
-    ui.indexInfo.textContent = state.accountReady ? `${state.files.size.toLocaleString('zh-TW')} 個索引項目 · 僅限目前帳號` : '正在辨識目前帳號';
+    ui.indexInfo.textContent = state.accountReady ? t('indexCurrentAccount', { count:n(state.files.size) }) : t('identifyingAccount');
     const p = state.syncProgress;
-    ui.settingsSyncState.textContent = state.syncing ? `${p?.resumed ? '正在接續同步' : (state.files.size ? '正在檢查更新' : '正在同步檔案庫')}` : state.lastSyncAt ? `上次同步 ${fmtDateTime(state.lastSyncAt)}` : '尚未同步';
+    ui.settingsSyncState.textContent = state.syncing
+      ? (p?.resumed ? t('resumingSync') : (state.files.size ? t('checkingUpdates') : t('syncingLibrary')))
+      : state.lastSyncAt ? t('lastSync', { date:fmtDateTime(state.lastSyncAt) }) : t('notSynced');
   };
+
   const updateAll = () => {
     if (!ui.root) return;
     updatePanelOpen();
@@ -952,7 +1005,7 @@
     if (!state.accountReady) {
       window.postMessage({ channel: CHANNEL, type:'PING_BRIDGE', payload:{} }, location.origin);
     window.postMessage({ channel: CHANNEL, type:'REQUEST_ACCOUNT', payload:{} }, location.origin);
-      state.syncProgress = { error: state.bridgeReady ? '尚未識別目前 ChatGPT 帳號' : '尚未連接頁面橋接器' };
+      state.syncProgress = { error: state.bridgeReady ? 'LCERR_NO_ACCOUNT' : 'LCERR_NO_BRIDGE' };
       updateHeader(); updateSettings();
       return;
     }
@@ -1045,7 +1098,13 @@
     const files = selectedFiles().filter(hasDeletePair);
     if (!files.length) return;
     const bytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
-    if (!confirm(`確定要刪除 ${files.length.toLocaleString('zh-TW')} 個檔案？${bytes ? `\n容量約 ${fmtBytes(bytes)}` : ''}\n\n此操作會將檔案移出 ChatGPT 檔案庫。`)) return;
+    const prompt = [
+      t('confirmDelete', { count:t('filesCount', { count:n(files.length) }) }),
+      bytes ? t('approxSize', { size:fmtBytes(bytes) }) : '',
+      '',
+      t('deleteWarning')
+    ].filter((part, index) => part || index === 2).join('\n');
+    if (!confirm(prompt)) return;
 
     state.deleting = true;
     state.deleteProgress = { total: files.length, done:0, failed:0 };
@@ -1067,7 +1126,7 @@
           for (const file of chunk) { state.files.delete(file.id); state.selected.delete(file.id); }
         } else {
           failed.push(...chunk);
-          const code = result.status ? `HTTP ${result.status}` : (result.error || '未知錯誤');
+          const code = result.status ? `HTTP ${result.status}` : (result.error || t('unknownError'));
           failureCodes.set(code, (failureCodes.get(code)||0) + chunk.length);
           state.deleteProgress.failed += chunk.length;
         }
@@ -1084,8 +1143,10 @@
     state.lastSyncAt = Date.now();
     await saveIndex();
     updateAll();
-    const failureSummary = [...failureCodes.entries()].map(([code,count]) => `${code} × ${count}`).join('、');
-    alert(failed.length ? `刪除完成，但有 ${failed.length} 個檔案失敗。${failureSummary ? `\n${failureSummary}` : ''}\n失敗檔案會保留選取，可直接再次嘗試。` : `已刪除 ${files.length.toLocaleString('zh-TW')} 個檔案。`);
+    const failureSummary = [...failureCodes.entries()].map(([code,count]) => `${bridgeText(code)} × ${n(count)}`).join(' · ');
+    alert(failed.length
+      ? [t('deletePartial', { count:t('failedFiles', { count:n(failed.length) }) }), failureSummary, t('deleteRetry')].filter(Boolean).join('\n')
+      : t('deleteSuccess', { count:t('deletedFiles', { count:n(files.length) }) }));
   };
 
   const startBackup = () => {
@@ -1106,7 +1167,7 @@
 
   const clearCurrentIndex = async () => {
     if (!state.accountReady) return;
-    if (!confirm('清除目前 ChatGPT 帳號的本機索引？\n這不會刪除 ChatGPT 裡的任何檔案。')) return;
+    if (!confirm(`${t('confirmClearIndex')}\n${t('clearIndexWarning')}`)) return;
     const keys = accountKeys();
     state.files.clear();
     state.selected.clear();
