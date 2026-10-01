@@ -147,16 +147,19 @@
   position:relative;
   width:42px;
   height:24px;
-  padding:0;
-  display:block;
+  padding:2px;
+  display:flex;
+  align-items:center;
+  box-sizing:border-box;
 }
 .lc-switch-thumb{
-  position:absolute;
-  top:2px;
-  left:2px;
+  position:relative;
+  top:-2px;
+  flex:0 0 20px;
   width:20px;
   height:20px;
   margin:0;
+  transform:none;
 }
 .lc-switch input:checked + .lc-switch-track .lc-switch-thumb{
   transform:translateX(18px);
